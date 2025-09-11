@@ -2,33 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Minimal TON Connect</title>
+  <title>TON Connect Demo</title>
   <script src="https://unpkg.com/@tonconnect/ui/dist/tonconnect-ui.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #tonconnect-btn { 
+      background-color: #0066FF; 
+      color: white; 
+      border: none; 
+      padding: 12px 24px; 
+      font-size: 16px; 
+      border-radius: 8px; 
+      cursor: pointer; 
+    }
+    #tonconnect-btn:hover { background-color: #0052CC; }
+  </style>
 </head>
 <body>
-  <h1>Minimal TON Connect Demo</h1>
-  <button id="connectBtn">Connect Wallet</button>
+  <h1>TON Connect Demo</h1>
+  <div id="tonconnect-btn-container"></div>
   <p id="status">Not connected</p>
 
   <script>
-    // Инициализация TON Connect UI
     const tonConnectUI = new TonConnectUI.TonConnectUI({
       manifestUrl: 'https://jeff-creator801/tonconnect-manifest.json'
     });
 
-    const btn = document.getElementById('connectBtn');
-    const status = document.getElementById('status');
+    // Создаем официальную синюю кнопку
+    const btn = tonConnectUI.renderButton({
+      container: document.getElementById('tonconnect-btn-container'),
+      text: 'Connect Wallet'
+    });
 
-    btn.onclick = async () => {
-      try {
-        const wallet = await tonConnectUI.connect();
+    tonConnectUI.onStatusChange(wallet => {
+      const status = document.getElementById('status');
+      if (wallet) {
         status.innerText = `Connected: ${wallet.name} (${wallet.address})`;
-        console.log(wallet);
-      } catch (err) {
-        status.innerText = 'Connection canceled or failed';
-        console.error(err);
+      } else {
+        status.innerText = 'Not connected';
       }
-    };
+    });
   </script>
 </body>
 </html>
