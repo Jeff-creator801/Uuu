@@ -1,47 +1,125 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>TON Connect Demo</title>
-  <script src="https://unpkg.com/@tonconnect/ui/dist/tonconnect-ui.min.js"></script>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    #tonconnect-btn { 
-      background-color: #0066FF; 
-      color: white; 
-      border: none; 
-      padding: 12px 24px; 
-      font-size: 16px; 
-      border-radius: 8px; 
-      cursor: pointer; 
-    }
-    #tonconnect-btn:hover { background-color: #0052CC; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Шашки</title>
+<style>
+body { font-family: Arial; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; margin: 0; padding: 20px; }
+h1 { margin-bottom: 10px; }
+#modeSelect { margin-bottom: 20px; }
+#board { display: grid; grid-template-columns: repeat(8,60px); grid-template-rows: repeat(8,60px); border: 2px solid #333; }
+.cell { width:60px; height:60px; display:flex; justify-content:center; align-items:center; font-size:30px; cursor:pointer; }
+.black { background-color:#769656; }
+.white { background-color:#eeeed2; }
+.selected { outline:3px solid yellow; }
+.piece { width:50px; height:50px; border-radius:50%; display:flex; justify-content:center; align-items:center; font-size:28px; }
+.red { background-color:red; color:white; }
+.blackPiece { background-color:black; color:white; }
+.king { border:2px solid gold; }
+</style>
 </head>
 <body>
-  <h1>TON Connect Demo</h1>
-  <div id="tonconnect-btn-container"></div>
-  <p id="status">Not connected</p>
 
-  <script>
-    const tonConnectUI = new TonConnectUI.TonConnectUI({
-      manifestUrl: 'https://jeff-creator801/tonconnect-manifest.json'
-    });
+<h1>Шашки</h1>
+<label for="modeSelect">Выберите режим:</label>
+<select id="modeSelect">
+<option value="friend">Против друга</option>
+<option value="ai">Против ИИ</option>
+</select>
+<div id="board"></div>
 
-    // Создаем официальную синюю кнопку
-    const btn = tonConnectUI.renderButton({
-      container: document.getElementById('tonconnect-btn-container'),
-      text: 'Connect Wallet'
-    });
+<script>
+const board=document.getElementById('board');
+const modeSelect=document.getElementById('modeSelect');
+let boardState=[], selected=null, currentPlayer='red', mode='friend';
 
-    tonConnectUI.onStatusChange(wallet => {
-      const status = document.getElementById('status');
-      if (wallet) {
-        status.innerText = `Connected: ${wallet.name} (${wallet.address})`;
-      } else {
-        status.innerText = 'Not connected';
-      }
-    });
-  </script>
+modeSelect.addEventListener('change',()=>{mode=modeSelect.value; resetGame();});
+
+function resetGame(){
+    boardState=[]; selected=null; currentPlayer='red'; createBoard();
+}
+
+function createBoard(){
+    board.innerHTML='';
+    for(let r=0;r<8;r++){
+        boardState[r]=[];
+        for(let c=0;c<8;c++){
+            const cell=document.createElement('div');
+            cell.classList.add('cell'); if((r+c)%2===0)cell.classList.add('white'); else cell.classList.add('black');
+            if(r<3&&(r+c)%2!==0){boardState[r][c]='black'; const p=createPiece('blackPiece'); cell.appendChild(p);}
+            else if(r>4&&(r+c)%2!==0){boardState[r][c]='red'; const p=createPiece('red'); cell.appendChild(p);}
+            else boardState[r][c]=null;
+            cell.dataset.row=r; cell.dataset.col=c; cell.addEventListener('click',onCellClick); board.appendChild(cell);
+        }
+    }
+}
+
+function createPiece(cls){ const p=document.createElement('div'); p.classList.add('piece',cls); return p; }
+
+function onCellClick(e){
+    const r=parseInt(e.currentTarget.dataset.row);
+    const c=parseInt(e.currentTarget.dataset.col);
+    if(selected){
+        if(isValidMove(selected.row,selected.col,r,c)){
+            movePiece(selected.row,selected.col,r,c);
+            selected=null; currentPlayer=currentPlayer==='red'?'black':'red';
+            if(mode==='ai'&&currentPlayer==='black'){setTimeout(aiMove,300);}
+        } else {selected=null; clearSelection();}
+    } else {
+        if(boardState[r][c]===currentPlayer){
+            selected={row:r,col:c};
+            e.currentTarget.classList.add('selected');
+        }
+    }
+}
+
+function clearSelection(){document.querySelectorAll('.cell').forEach(cell=>cell.classList.remove('selected'));}
+
+function isValidMove(sr,sc,dr,dc){
+    const piece=boardState[sr][sc]; if(!piece) return false;
+    if(boardState[dr][dc]) return false;
+    const dir=piece==='red'||piece.includes('king')?-1:1;
+    const dx=dc-sc; const dy=dr-sr;
+    if(Math.abs(dx)===1&&Math.abs(dy)===1) return piece.includes('king')||dy===dir;
+    if(Math.abs(dx)===2&&Math.abs(dy)===2){
+        const midR=(sr+dr)/2; const midC=(sc+dc)/2; const midPiece=boardState[midR][midC];
+        if(midPiece&&midPiece!==piece) return true;
+    }
+    return false;
+}
+
+function movePiece(sr,sc,dr,dc){
+    const piece=boardState[sr][sc]; boardState[dr][dc]=piece; boardState[sr][sc]=null;
+    const fromCell=document.querySelector(`.cell[data-row="${sr}"][data-col="${sc}"]`);
+    const toCell=document.querySelector(`.cell[data-row="${dr}"][data-col="${dc}"]`);
+    toCell.innerHTML=fromCell.innerHTML; fromCell.innerHTML='';
+    clearSelection();
+    if(Math.abs(sr-dr)===2){
+        const midR=(sr+dr)/2; const midC=(sc+dc)/2;
+        boardState[midR][midC]=null;
+        document.querySelector(`.cell[data-row="${midR}"][data-col="${midC}"]`).innerHTML='';
+    }
+    // Дамки
+    if(piece==='red'&&dr===0) toCell.firstChild.classList.add('king');
+    if(piece==='black'&&dr===7) toCell.firstChild.classList.add('king');
+}
+
+function aiMove(){
+    let moves=[];
+    for(let r=0;r<8;r++){for(let c=0;c<8;c++){
+        if(boardState[r][c]==='black'||boardState[r][c].includes('king')){
+            for(let dr=0;dr<8;dr++){for(let dc=0;dc<8;dc++){
+                if(isValidMove(r,c,dr,dc)) moves.push({sr:r,sc:c,dr,dc});
+            }}
+        }
+    }}
+    if(moves.length===0) return alert('Красные победили!');
+    const move=moves[Math.floor(Math.random()*moves.length)];
+    movePiece(move.sr,move.sc,move.dr,move.dc); currentPlayer='red';
+}
+
+resetGame();
+</script>
 </body>
 </html>
