@@ -3,124 +3,137 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Шашки — играть против друга / ИИ</title>
+<title>Шашки — с Undo и Double Capture</title>
 <style>
   :root{--light:#eeeed2;--dark:#769656;--bg:#f4f7f9;}
   *{box-sizing:border-box}
   body{font-family:Inter,Helvetica,Arial,sans-serif;background:var(--bg);margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .game-wrap{width:700px;max-width:100%}
+  .game-wrap{width:760px;max-width:100%}
   header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   h1{font-size:20px;margin:0}
   #status{font-size:14px;color:#333}
-  /* Меню поверх игры */
+  /* Меню */
   #menu{
-    position:relative;
-    margin-bottom:12px;
-    background:white;
-    padding:14px;
-    border-radius:10px;
-    box-shadow:0 6px 18px rgba(20,30,50,0.08);
-    display:flex;
-    gap:12px;
-    align-items:center;
+    margin-bottom:12px;background:white;padding:12px;border-radius:10px;
+    box-shadow:0 6px 18px rgba(20,30,50,0.06);display:flex;gap:12px;align-items:center;
   }
   .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer;font-weight:600}
   .btn-primary{background:#2563eb;color:#fff}
   .btn-ghost{background:transparent;border:1px solid #cbd5e1;color:#111}
   .btn-mode{padding:8px 10px;border-radius:8px;border:1px solid transparent;cursor:pointer}
   .btn-mode.active{background:#111827;color:#fff}
+  /* Layout */
+  .main{display:flex;gap:18px;align-items:flex-start}
   /* Доска */
+  #board-wrap{background:white;padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(20,30,50,0.06)}
   #board{
-    width:480px;height:480px;max-width:100%;aspect-ratio:1/1;
-    display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+    width:560px;height:560px;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
     border-radius:8px;overflow:hidden;border:4px solid #2b3440;background:#222;
-    margin:0 auto;
   }
   .cell{display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none}
   .cell.light{background:var(--light)}
   .cell.dark{background:var(--dark)}
   .cell:hover{filter:brightness(1.03)}
   .piece{
-    width:68%;height:68%;border-radius:50%;display:flex;align-items:center;justify-content:center;
-    font-weight:700;box-shadow:0 2px 5px rgba(0,0,0,0.25);cursor:pointer;
+    width:68%;height:68%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;
+    box-shadow:0 2px 5px rgba(0,0,0,0.25);cursor:pointer;
   }
   .piece.red{background:#e11d48;color:#fff}
   .piece.black{background:#111827;color:#fff}
   .piece.king{outline:3px solid gold}
-  .selected{outline:4px solid rgba(255,255,0,0.85);outline-offset:-6px}
-  .highlight{box-shadow: inset 0 0 0 4px rgba(255,255,0,0.14)}
-  /* Подсказки снизу */
-  footer{margin-top:12px;text-align:center;color:#374151;font-size:13px}
-  .controls{display:flex;gap:8px;align-items:center}
-  @media(max-width:640px){
+  .selected{outline:4px solid rgba(255,255,0,0.9);outline-offset:-6px}
+  .highlight{box-shadow: inset 0 0 0 6px rgba(255,255,0,0.12)}
+  /* Controls column */
+  .controls{width:180px;display:flex;flex-direction:column;gap:8px}
+  .small{font-size:13px;color:#374151}
+  .muted{font-size:13px;color:#6b7280}
+  .btn-block{width:100%}
+  @media(max-width:900px){
+    .main{flex-direction:column;align-items:center}
     #board{width:360px;height:360px}
+    .controls{width:100%;display:flex;flex-direction:row;justify-content:space-between}
   }
 </style>
 </head>
 <body>
-<div class="game-wrap">
-  <header>
-    <h1>Шашки</h1>
-    <div id="status">Выберите режим и нажмите «Начать игру»</div>
-  </header>
+  <div class="game-wrap">
+    <header>
+      <h1>Шашки</h1>
+      <div id="status">Выберите режим и нажмите «Начать игру»</div>
+    </header>
 
-  <!-- Меню выбора режима -->
-  <div id="menu">
-    <div style="display:flex;gap:8px;align-items:center;">
-      <div>Играть против:</div>
-      <button class="btn-mode" id="modeFriend">Друг</button>
-      <button class="btn-mode" id="modeAI">ИИ</button>
+    <!-- Меню -->
+    <div id="menu">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div>Играть против:</div>
+        <button class="btn-mode" id="modeFriend">Друг</button>
+        <button class="btn-mode" id="modeAI">ИИ</button>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-primary" id="startBtn">Начать игру</button>
+        <button class="btn btn-ghost" id="newBtn">Новая игра</button>
+      </div>
     </div>
 
-    <div style="margin-left:auto;display:flex;gap:8px">
-      <button class="btn btn-primary" id="startBtn">Начать игру</button>
-      <button class="btn btn-ghost" id="newBtn">Новая игра</button>
+    <div class="main">
+      <div id="board-wrap">
+        <div id="board" aria-label="Шашечная доска"></div>
+      </div>
+
+      <div class="controls">
+        <div><button class="btn btn-ghost btn-block" id="undoBtn">Ход назад (Undo)</button></div>
+        <div class="small"><b>Подсказки:</b></div>
+        <div class="muted">• Выберите режим до старта. Во время партии режим менять нельзя.</div>
+        <div class="muted">• Если доступно съедание — оно обязательно (подсвечено).</div>
+        <div class="muted">• После съедания, если доступны новые съедания — продолжите цепочку.</div>
+        <div style="margin-top:auto" class="small">Сделано: ИИ с приоритетом съеданий, Undo для каждого атомарного шага.</div>
+      </div>
     </div>
   </div>
 
-  <!-- Игровая доска -->
-  <div id="board" aria-label="Шашечная доска"></div>
-
-  <footer>
-    <div class="controls">
-      <div style="min-width:220px;text-align:left;color:#374151;font-size:13px">
-        <b>Правила:</b> красные ходят первыми. Дамка отмечается золотой окантовкой. Во время партии режим менять нельзя.
-      </div>
-    </div>
-  </footer>
-</div>
-
 <script>
-/* Представление клетки: null или {color:'red'|'black', king: boolean} */
+/* ====== Модель доски ======
+ boardState[r][c] = null | { color: 'red'|'black', king: boolean }
+ currentPlayer: 'red'|'black'
+ historyStack: массив снимков состояния (для Undo)
+ gameMode: 'friend'|'ai'
+ selected: {r,c} или null
+ gameStarted: bool
+*/
+
 const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status');
 const modeFriendBtn = document.getElementById('modeFriend');
 const modeAIBtn = document.getElementById('modeAI');
 const startBtn = document.getElementById('startBtn');
 const newBtn = document.getElementById('newBtn');
+const undoBtn = document.getElementById('undoBtn');
 
-let gameMode = null; // 'friend' или 'ai'
+let gameMode = null;
 let gameStarted = false;
 let boardState = [];
-let selected = null; // {r,c}
 let currentPlayer = 'red';
+let selected = null;
+let historyStack = []; // snapshots for undo
+let midCapture = false; // true если игрок сейчас в середине цепочки захватов (должен продолжать тем же фишкой)
 
-// UI: выбор режима кнопки
+/* Инициализация UI выбора режима */
 modeFriendBtn.addEventListener('click', ()=> chooseMode('friend'));
 modeAIBtn.addEventListener('click', ()=> chooseMode('ai'));
 startBtn.addEventListener('click', startGame);
 newBtn.addEventListener('click', resetToMenu);
+undoBtn.addEventListener('click', undoMove);
 
-chooseMode('friend'); // по умолчанию
+chooseMode('friend');
 
 function chooseMode(m){
   gameMode = m;
   modeFriendBtn.classList.toggle('active', m==='friend');
   modeAIBtn.classList.toggle('active', m==='ai');
-  statusEl.textContent = 'Режим выбран: ' + (m==='friend' ? 'Против друга' : 'Против ИИ') + ' — нажмите "Начать игру"';
+  statusEl.textContent = 'Режим: ' + (m==='friend' ? 'Против друга' : 'Против ИИ') + ' — нажмите «Начать игру»';
 }
 
-/* Инициализация доски в память и отрисовка */
+/* Создать начальное состояние доски */
 function initBoardState(){
   boardState = Array.from({length:8}, ()=>Array(8).fill(null));
   for(let r=0;r<8;r++){
@@ -133,7 +146,7 @@ function initBoardState(){
   }
 }
 
-/* Отрисовка DOM доски по boardState */
+/* Отрисовка доски */
 function renderBoard(){
   boardEl.innerHTML = '';
   for(let r=0;r<8;r++){
@@ -141,7 +154,6 @@ function renderBoard(){
       const cell = document.createElement('div');
       cell.className = 'cell ' + (((r+c)%2===0) ? 'light' : 'dark');
       cell.dataset.r = r; cell.dataset.c = c;
-      // добавляем слушатель
       cell.addEventListener('click', onCellClick);
       const piece = boardState[r][c];
       if(piece){
@@ -154,25 +166,28 @@ function renderBoard(){
     }
   }
   updateSelectionVisual();
+  updateStatus();
 }
 
-/* Начать игру */
+/* Старт игры */
 function startGame(){
   if(!gameMode) return alert('Выберите режим игры.');
   initBoardState();
   gameStarted = true;
   currentPlayer = 'red';
   selected = null;
+  historyStack = [];
+  midCapture = false;
   renderBoard();
-  // блокируем выбор режима (визуально)
+  // блокировать режим
   modeFriendBtn.disabled = true;
   modeAIBtn.disabled = true;
   startBtn.disabled = true;
   statusEl.textContent = (gameMode==='ai' ? 'Режим: ИИ. ' : 'Режим: Друг. ') + 'Ходят красные.';
-  // если ИИ должен ходить первым — в наших правилах красные всегда первые, так что нет
+  // Если ИИ должен ходить первым — у нас красные первыми по правилам
 }
 
-/* Вернуться в меню (новая игра) */
+/* Вернуться в меню (не сохраняем историю) */
 function resetToMenu(){
   gameStarted = false;
   initBoardState();
@@ -182,209 +197,328 @@ function resetToMenu(){
   startBtn.disabled = false;
   statusEl.textContent = 'Выберите режим и нажмите «Начать игру»';
   selected = null;
+  historyStack = [];
+  midCapture = false;
 }
 
-/* Обработчик клика по клетке */
+/* Клик по клетке */
 function onCellClick(e){
   if(!gameStarted) return;
   const r = parseInt(e.currentTarget.dataset.r,10);
   const c = parseInt(e.currentTarget.dataset.c,10);
-  const cellPiece = boardState[r][c];
+  const clickedPiece = boardState[r][c];
 
-  // Если уже выбрана фигура
-  if(selected){
-    // Попытка хода выбранной фигурой в (r,c)
-    if(isValidMove(selected.r, selected.c, r, c)){
-      doMove(selected.r, selected.c, r, c);
-      selected = null;
-      renderBoard();
-      // Проверка на конец игры
-      if(!hasAnyMovesForColor(opponentOf(currentPlayer))){
-        setTimeout(()=> alert((currentPlayer === 'red' ? 'Красные' : 'Чёрные') + ' победили!'), 50);
-        gameStarted = false;
-        statusEl.textContent = 'Игра окончена';
-        // разблокировать режимы
-        modeFriendBtn.disabled = false; modeAIBtn.disabled = false; startBtn.disabled = false;
-        return;
-      }
-      // Смена игрока
-      currentPlayer = opponentOf(currentPlayer);
-      statusEl.textContent = (currentPlayer === 'red' ? 'Ходят красные' : 'Ходят чёрные');
-      // Если сейчас ход ИИ — запустить
-      if(gameMode === 'ai' && currentPlayer === 'black'){
-        setTimeout(aiMove, 250);
-      }
+  // Если в середине цепочки захватов - можно двигать только ту же шашку и только захватывать
+  if(midCapture){
+    if(selected && selected.r === r && selected.c === c) {
+      // клик по той же шашке - просто выделение
+      updateSelectionVisual();
+      return;
+    }
+    // разрешены только ходы захвата для selected
+    if(selected && isValidCaptureMove(selected.r, selected.c, r, c)){
+      performMove(selected.r, selected.c, r, c);
       return;
     } else {
-      // если кликнули не по доступной цели — снять выбор или выбрать другую свою шашку
-      if(cellPiece && cellPiece.color === currentPlayer){
+      // запрещаем выбрать другую шашку
+      return;
+    }
+  }
+
+  // Если выбрана фишка — попытка сходить
+  if(selected){
+    if(isLegalMove(selected.r, selected.c, r, c)){
+      performMove(selected.r, selected.c, r, c);
+      return;
+    } else {
+      // если кликнули на свою фишку - сменить выбор (но нужно учитывать обязательные съедания)
+      if(clickedPiece && clickedPiece.color === currentPlayer){
+        // если есть обязательные съедания - можно выбирать только шашки, у которых есть захваты
+        const forced = getAllCaptureMoves(currentPlayer);
+        if(forced.length > 0){
+          const hasCaptureForThis = getCaptureMovesForPiece(r,c).length > 0;
+          if(!hasCaptureForThis) { selected = null; updateSelectionVisual(); return; }
+        }
         selected = {r,c};
         updateSelectionVisual();
-      } else {
-        selected = null;
-        updateSelectionVisual();
+        return;
       }
+      // иначе сброс выбора
+      selected = null;
+      updateSelectionVisual();
       return;
     }
   } else {
-    // Нет выбора — можно выбрать свою шашку
-    if(cellPiece && cellPiece.color === currentPlayer){
+    // нет выбора — попытка выбрать свою шашку (только если у неё есть доступные ходы)
+    if(clickedPiece && clickedPiece.color === currentPlayer){
+      const allMoves = getAllLegalMovesForPiece(r,c);
+      if(allMoves.length === 0) return; // нечего выбрать
+      // если есть forced captures в игре, не позволяем выбирать фигуру без capture
+      const forced = getAllCaptureMoves(currentPlayer);
+      if(forced.length > 0){
+        const hasCaptureForThis = getCaptureMovesForPiece(r,c).length > 0;
+        if(!hasCaptureForThis) return;
+      }
       selected = {r,c};
       updateSelectionVisual();
     }
   }
 }
 
-/* Обновить визуальное выделение выбранной клетки и подсветка возможных ходов */
+/* Обновить визуальное выделение и подсветку возможных целей */
 function updateSelectionVisual(){
-  // очистка
-  document.querySelectorAll('.cell').forEach(cell => {
+  document.querySelectorAll('.cell').forEach(cell=>{
     cell.classList.remove('selected','highlight');
   });
   if(!selected) return;
   const selCell = document.querySelector(`.cell[data-r="${selected.r}"][data-c="${selected.c}"]`);
   if(selCell) selCell.classList.add('selected');
-  // подсветить возможные цели
-  for(let dr=0; dr<8; dr++){
-    for(let dc=0; dc<8; dc++){
-      if(isValidMove(selected.r, selected.c, dr, dc)){
-        const cell = document.querySelector(`.cell[data-r="${dr}"][data-c="${dc}"]`);
-        if(cell) cell.classList.add('highlight');
+
+  // подсветить цели в зависимости от правила (если есть forced captures - показываем только capture-цели)
+  const forced = getAllCaptureMoves(currentPlayer);
+  if(midCapture){
+    // показываем только capture-цели для данной шашки
+    const caps = getCaptureMovesForPiece(selected.r, selected.c);
+    for(const m of caps){
+      const cell = document.querySelector(`.cell[data-r="${m.dr}"][data-c="${m.dc}"]`);
+      if(cell) cell.classList.add('highlight');
+    }
+  } else if(forced.length > 0){
+    // подсвечиваем только capture-цели для выбранной (если она имеет)
+    const caps = getCaptureMovesForPiece(selected.r, selected.c);
+    for(const m of caps){
+      const cell = document.querySelector(`.cell[data-r="${m.dr}"][data-c="${m.dc}"]`);
+      if(cell) cell.classList.add('highlight');
+    }
+  } else {
+    // обычные ходы и захваты
+    const moves = getAllLegalMovesForPiece(selected.r, selected.c);
+    for(const m of moves){
+      const cell = document.querySelector(`.cell[data-r="${m.dr}"][data-c="${m.dc}"]`);
+      if(cell) cell.classList.add('highlight');
+    }
+  }
+}
+
+/* ===== Логика ходов / проверки ===== */
+
+/* Возвращает массив всех легальных ходов (включая захваты) для цвета */
+function getAllLegalMoves(color){
+  let moves = [];
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      const p = boardState[r][c];
+      if(p && p.color === color){
+        const pieceMoves = getAllLegalMovesForPiece(r,c);
+        for(const mv of pieceMoves){
+          moves.push({sr:r,sc:c,dr:mv.dr,dc:mv.dc,capture:mv.capture});
+        }
       }
     }
   }
+  // Если есть захваты — убрать обычные ходы (forced capture)
+  const captureMoves = moves.filter(m=>m.capture);
+  return captureMoves.length>0 ? captureMoves : moves;
 }
 
-/* Валидация хода (не меняет boardState) */
-function isValidMove(sr, sc, dr, dc){
-  // общие проверки
-  if(sr===dr && sc===dc) return false;
-  if(!inBounds(sr,sc) || !inBounds(dr,dc)) return false;
-  const piece = boardState[sr][sc];
-  if(!piece) return false;
-  if(boardState[dr][dc] !== null) return false; // цель должна быть пустой
-
-  const dx = dc - sc;
-  const dy = dr - sr;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-
-  // движение по диагонали только
-  if(absDx !== absDy) return false;
-
-  // направление для некороля: red вверх (-1), black вниз (+1)
-  const dir = (piece.color === 'red') ? -1 : 1;
-
-  // простое движение на 1 шаг: допускается если король или направление совпадает
-  if(absDx === 1 && absDy === 1){
-    if(piece.king) return true;
-    return dy === dir;
-  }
-
-  // прыжок через шашку (съедание)
-  if(absDx === 2 && absDy === 2){
-    const midR = (sr + dr) >> 1;
-    const midC = (sc + dc) >> 1;
-    const mid = boardState[midR][midC];
-    if(mid && mid.color !== piece.color) {
-      // Для некороля можно требовать направление прыжка, но классические правила позволяют прыжки назад для дамки только.
-      if(piece.king) return true;
-      return dy === dir * 2;
+/* Возвращает все легальные ходы (один шаг или захват) для конкретной клетки (r,c) */
+function getAllLegalMovesForPiece(r,c){
+  const p = boardState[r][c];
+  if(!p) return [];
+  const res = [];
+  const dirs = p.king ? [[1,1],[1,-1],[-1,1],[-1,-1]] : (p.color==='red' ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]);
+  // простое движение
+  for(const [dr,dc] of dirs){
+    const nr = r + dr, nc = c + dc;
+    if(inBounds(nr,nc) && boardState[nr][nc] === null){
+      res.push({dr:nr,dc:nc,capture:false});
     }
   }
-
-  return false;
+  // захваты
+  const allDirs = [[1,1],[1,-1],[-1,1],[-1,-1]];
+  for(const [dr,dc] of allDirs){
+    const mr = r + dr, mc = c + dc;
+    const tr = r + dr*2, tc = c + dc*2;
+    if(inBounds(tr,tc) && boardState[tr][tc] === null){
+      const mid = boardState[mr] && boardState[mr][mc];
+      if(mid && mid.color !== p.color){
+        // для не-дамки допустимо только в направлении вперёд (в классических правилах), но для простоты разрешим захват назад только если это дамка
+        if(p.king) {
+          res.push({dr:tr,dc:tc,capture:true});
+        } else {
+          const dir = p.color === 'red' ? -1 : 1;
+          if((dr === dir)) res.push({dr:tr,dc:tc,capture:true});
+        }
+      }
+    }
+  }
+  return res;
 }
 
-/* Выполнить ход (модифицирует boardState). Возвращает true, если было съедание */
-function doMove(sr, sc, dr, dc){
+/* Возвращает только capture-ходы для данной фишки */
+function getCaptureMovesForPiece(r,c){
+  return getAllLegalMovesForPiece(r,c).filter(m=>m.capture);
+}
+
+/* Возвращает все capture-ходы для цвета */
+function getAllCaptureMoves(color){
+  return getAllLegalMoves(color).filter(m=>m.capture);
+}
+
+/* Проверка легального хода (используется при кликах) */
+function isLegalMove(sr,sc,dr,dc){
+  // смотрим список всех легальных ходов текущего игрока
+  const moves = getAllLegalMoves(currentPlayer);
+  return moves.some(m => m.sr===sr && m.sc===sc && m.dr===dr && m.dc===dc);
+}
+
+/* Проверка: конкретно capture-проверка для selected (используется при midCapture) */
+function isValidCaptureMove(sr,sc,dr,dc){
+  const caps = getCaptureMovesForPiece(sr,sc);
+  return caps.some(m => m.dr===dr && m.dc===dc);
+}
+
+/* ===== Выполнение хода ===== */
+
+/* Сохранить snapshot в историю (глубокая копия) */
+function pushHistory(){
+  const snap = {
+    board: JSON.parse(JSON.stringify(boardState)),
+    currentPlayer,
+    selected: selected ? {r:selected.r, c:selected.c} : null,
+    midCapture
+  };
+  historyStack.push(snap);
+  // ограничим стек для безопасности, допустим 200 состояний
+  if(historyStack.length > 200) historyStack.shift();
+}
+
+/* Откатить ход */
+function undoMove(){
+  if(historyStack.length === 0) return;
+  const snap = historyStack.pop();
+  boardState = JSON.parse(JSON.stringify(snap.board));
+  currentPlayer = snap.currentPlayer;
+  selected = snap.selected ? {r:snap.selected.r, c:snap.selected.c} : null;
+  midCapture = snap.midCapture;
+  gameStarted = true;
+  renderBoard();
+}
+
+/* Выполнить атомарный ход (один шаг или захват). Логика многопрыжков встроена: 
+   Если был захват и после него есть дополнительные захваты тем же piece => остаёмся в midCapture.
+   Если цепочка закончилась => смена игрока.
+*/
+function performMove(sr,sc,dr,dc){
+  // сохранить snapshot до хода
+  pushHistory();
+
   const piece = boardState[sr][sc];
-  if(!piece) return false;
-  const jumped = Math.abs(sr - dr) === 2;
-  // переместить
-  boardState[dr][dc] = {...piece}; // копия объекта
+  const isCapture = Math.abs(sr - dr) === 2;
+  // выполнить перемещение
+  boardState[dr][dc] = {...piece};
   boardState[sr][sc] = null;
-  if(jumped){
-    const midR = (sr + dr) >> 1;
-    const midC = (sc + dc) >> 1;
-    boardState[midR][midC] = null;
+  if(isCapture){
+    const mr = (sr + dr) >> 1, mc = (sc + dc) >> 1;
+    boardState[mr][mc] = null;
   }
   // коронация
   if(boardState[dr][dc].color === 'red' && dr === 0) boardState[dr][dc].king = true;
   if(boardState[dr][dc].color === 'black' && dr === 7) boardState[dr][dc].king = true;
 
-  return jumped;
-}
-
-/* ИИ: собирает все возможные ходы для чёрных и делает случайный */
-function aiMove(){
-  if(!gameStarted) return;
-  // собираем все ходы
-  const moves = [];
-  for(let r=0;r<8;r++){
-    for(let c=0;c<8;c++){
-      const p = boardState[r][c];
-      if(p && p.color === 'black'){
-        for(let dr=0; dr<8; dr++){
-          for(let dc=0; dc<8; dc++){
-            if(isValidMove(r,c,dr,dc)) moves.push({sr:r,sc:c,dr,dc});
-          }
-        }
+  // если был захват — проверить, есть ли дальнейшие захваты для этой шашки
+  if(isCapture){
+    const further = getCaptureMovesForPiece(dr,dc);
+    if(further.length > 0){
+      // остаёмся у того же игрока и разрешаем продолжить цепочку тем же камнем
+      midCapture = true;
+      selected = {r:dr,c:dc};
+      renderBoard();
+      // если сейчас ход ИИ — пусть ИИ автоматически выполняет оставшиеся захваты (пауза для визуальности)
+      if(gameMode === 'ai' && currentPlayer === 'black'){
+        setTimeout(()=> aiContinueCapture(dr,dc), 300);
+      } else {
+        // игрок продолжает сам (подсказки уже показывают возможные capture-цели)
+        statusEl.textContent = (currentPlayer === 'red' ? 'Красные' : 'Чёрные') + ' — продолжите цепочку захватов';
       }
+      return;
     }
   }
-  if(moves.length === 0){
-    // ИИ не может ходить — красные победили
-    setTimeout(()=> alert('Красные победили!'), 50);
-    gameStarted = false;
-    statusEl.textContent = 'Игра окончена';
-    modeFriendBtn.disabled = false; modeAIBtn.disabled = false; startBtn.disabled = false;
-    return;
-  }
 
-  // предпочтение: съедания выше простых ходов (простая эвристика)
-  const captureMoves = moves.filter(m => Math.abs(m.sr - m.dr) === 2);
-  const chosen = (captureMoves.length ? captureMoves : moves)[Math.floor(Math.random() * (captureMoves.length ? captureMoves.length : moves.length))];
-
-  doMove(chosen.sr, chosen.sc, chosen.dr, chosen.dc);
+  // если сюда дошли — цепочка захватов закончилась (или вообще не было захвата)
+  midCapture = false;
+  selected = null;
+  // смена игрока
+  currentPlayer = opponentOf(currentPlayer);
   renderBoard();
 
-  // проверить конец игры
-  if(!hasAnyMovesForColor('red')){
-    setTimeout(()=> alert('Чёрные победили!'), 50);
+  // после смены — если ИИ и его ход — инициировать ход ИИ
+  if(gameMode === 'ai' && currentPlayer === 'black'){
+    setTimeout(aiMove, 250);
+  }
+}
+
+/* Продолжение захвата для ИИ (автоматически выбирает случайный capture среди доступных) */
+function aiContinueCapture(r,c){
+  // если игра остановлена или не midCapture — ничего
+  if(!gameStarted) return;
+  const caps = getCaptureMovesForPiece(r,c);
+  if(caps.length === 0){
+    // закончилась цепочка
+    midCapture = false;
+    selected = null;
+    currentPlayer = opponentOf(currentPlayer);
+    renderBoard();
+    return;
+  }
+  // выбрать случайный захват
+  const choice = caps[Math.floor(Math.random() * caps.length)];
+  performMove(r,c,choice.dr,choice.dc);
+}
+
+/* ====== ИИ: выбирает ход (предпочитает захваты) ====== */
+function aiMove(){
+  if(!gameStarted) return;
+  // собрать все легальные ходы для чёрных
+  const moves = getAllLegalMoves('black'); // сюда входят capture (если есть) или все ходы
+  if(moves.length === 0){
+    setTimeout(()=> alert('Красные победили!'), 50);
     gameStarted = false;
-    statusEl.textContent = 'Игра окончена';
     modeFriendBtn.disabled = false; modeAIBtn.disabled = false; startBtn.disabled = false;
     return;
   }
-
-  // смена игрока
-  currentPlayer = 'red';
-  statusEl.textContent = 'Ходят красные';
+  // приоритет: capture-ходы
+  const captureMoves = moves.filter(m => m.capture);
+  const pool = captureMoves.length > 0 ? captureMoves : moves;
+  const chosen = pool[Math.floor(Math.random() * pool.length)];
+  // выполнить ход; если это capture и есть дальнейшие — aiContinueCapture позаботится о продолжении
+  performMove(chosen.sr, chosen.sc, chosen.dr, chosen.dc);
 }
 
-/* Вспомогательные */
+/* ====== Вспомогательные функции ====== */
 function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
-function opponentOf(col){ return col === 'red' ? 'black' : 'red'; }
+function opponentOf(color){ return color === 'red' ? 'black' : 'red'; }
 
-/* Проверяет, есть ли хоть один допустимый ход для цвета */
+/* Проверка, есть ли хоть один ход у цвета (используется для определения конца игры) */
 function hasAnyMovesForColor(color){
-  for(let r=0;r<8;r++){
-    for(let c=0;c<8;c++){
-      const p = boardState[r][c];
-      if(p && p.color === color){
-        for(let dr=0; dr<8; dr++){
-          for(let dc=0; dc<8; dc++){
-            if(isValidMove(r,c,dr,dc)) return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
+  const moves = getAllLegalMoves(color);
+  return moves.length > 0;
 }
 
-/* Инициализация (пустая доска в меню) */
+/* Обновить статус (информирование игрока) */
+function updateStatus(){
+  if(!gameStarted){
+    statusEl.textContent = 'Игра не начата';
+    return;
+  }
+  if(midCapture){
+    statusEl.textContent = (currentPlayer==='red' ? 'Красные' : 'Чёрные') + ' — продолжите цепочку захватов';
+    return;
+  }
+  statusEl.textContent = (currentPlayer==='red' ? 'Ходят красные' : 'Ходят чёрные') + (gameMode==='ai' ? (currentPlayer==='black' ? ' (ИИ ходит)' : '') : '');
+}
+
+/* ===== Инициализация интерфейса при загрузке ===== */
 initBoardState();
 renderBoard();
 </script>
